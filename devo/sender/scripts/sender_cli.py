@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """CLI for use Devo Sender from shell command line."""
 
@@ -22,12 +23,12 @@ from devo.__version__ import __version__
 @click.option('--version', "-v", is_flag=True, default=False)
 def cli(version):
     """ Initialize click """
-    pkg_dir =  os.path.abspath(os.path.join(
-        os.path.dirname(__file__), "..", "..",
-    ))
-    click.echo("devo-sdk {!s} from {!s} (python {!s})".format(__version__,
-                                                              pkg_dir,
-                                                              sys.version[:3]))
+    if version:
+        pkg_dir = os.path.abspath(os.path.join(
+            os.path.dirname(__file__), "..", "..",
+        ))
+        click.echo("devo-sdk {!s} from {!s} (python {!s})"
+                   .format(__version__, pkg_dir, sys.version[:3]))
 
 
 # Commands
@@ -41,7 +42,14 @@ def cli(version):
 @click.option('--cert', help='Devo user cert file.')
 @click.option('--chain', help='Devo chain.crt file.')
 @click.option('--sec_level', help='Sec level for opensslsocket. Default: None',
-              default=None)
+              type=int)
+@click.option('--verify_mode', help='Verify mode for SSL Socket. '
+                                    'Default: SSL default.'
+                                    'You need use int "0" (CERT_NONE), '
+                                    '"1" (CERT_OPTIONAL) or '
+                                    '"2" (CERT_REQUIRED)', type=int)
+@click.option('--check_hostname', help='Verify cert hostname. Default: True',
+              type=bool)
 @click.option('--multiline/--no-multiline', help='Flag for multiline (With '
                                                  'break-line in msg). '
                                                  'Default False', default=False)
@@ -56,16 +64,31 @@ def cli(version):
               default="")
 @click.option('--header', '-h', help='This option is used to indicate if the'
                                      ' file has headers or not, not to send '
-                                     'them.', default=False)
+                                     'them.', default=False, type=bool)
 @click.option('--raw', is_flag=True, help='Send raw events from a '
                                           'file when using --file')
 @click.option('--debug/--no-debug', help='For testing purposes', default=False)
+@click.option('--zip/--no-zip', help='For testing purposes', default=False,
+              type=bool)
+@click.option('--buffer', help='Buffer size for zipped data.', type=int)
+@click.option('--compression_level', help='Compression level for zipped data. '
+                                          'Read readme for more info',
+              type=int)
+@click.option('--env', '-e', help='Use env vars for configuration',
+              default=False, type=bool)
+@click.option('--default', '-d', help='Use default file for configuration',
+              default=False, type=bool)
 def data(**kwargs):
     """Send data to devo"""
     config = configure(kwargs)
     sended = 0
     try:
         con = Sender(config=config)
+        if config.get("buffer", None) is not None:
+            con.buffer_size(size=config.get("buffer"))
+        if config.get("compression_level", None) is not None:
+            con.compression_level(cl=config.get("compression_level"))
+
         if config['file']:
             if not os.path.isfile(config['file']):
                 print_error(str("File not exist"))
@@ -75,10 +98,12 @@ def data(**kwargs):
                     content = file.read()
                     if not config['raw']:
                         sended += con.send(tag=config['tag'], msg=content,
-                                           multiline=config['multiline'])
+                                           multiline=config['multiline'],
+                                           zip=config.get("zip", False))
                     else:
                         sended += con.send_raw(content,
-                                               multiline=config['multiline'])
+                                               multiline=config['multiline'],
+                                               zip=config.get("zip", False))
             else:
                 with open(config['file']) as file:
                     if config['header']:
@@ -87,9 +112,11 @@ def data(**kwargs):
                         if config['raw']:
                             sended += con.send_raw(line)
                         else:
-                            sended += con.send(tag=config['tag'], msg=line)
+                            sended += con.send(tag=config['tag'], msg=line,
+                                               zip=config.get("zip", False))
         else:
-            sended += con.send(tag=config['tag'], msg=config['line'])
+            sended += con.send(tag=config['tag'], msg=config['line'],
+                               zip=config.get("zip", False))
 
         con.close()
         if config.get("debug", False):
@@ -107,23 +134,38 @@ def data(**kwargs):
 @click.option('--config', '-c', type=click.Path(exists=True),
               help='Optional JSON/Yaml File with configuration info.')
 @click.option('--env', '-e', help='Use env vars for configuration',
-              default=False)
+              default=False, type=bool)
 @click.option('--default', '-d', help='Use default file for configuration',
-              default=False)
+              default=False, type=bool)
 @click.option('--url', '--address', '-a', help='Devo relay address')
 @click.option('--port', '-p', default=443, help='Devo relay address port')
 @click.option('--key', help='Devo user key cert file.')
 @click.option('--cert', help='Devo user cert file.')
 @click.option('--chain', help='Devo chain.crt file.')
 @click.option('--sec_level', help='Sec level for opensslsocket. Default: None',
-              default=None)
+              type=int)
+@click.option('--verify_mode', help='Verify mode for SSL Socket. '
+                                    'Default: SSL default.'
+                                    'You need use int "0" (CERT_NONE), '
+                                    '"1" (CERT_OPTIONAL) or '
+                                    '"2" (CERT_REQUIRED)', type=int)
+@click.option('--check_hostname', help='Verify cert hostname. Default: True',
+              type=bool)
 @click.option('--type', help='Connection type: SSL or TCP', default="SSL")
 @click.option('--name', '-n', help='Name for Lookup.')
+@click.option('--action', '-ac', help='INC or FULL.', default="FULL")
 @click.option('--file', '-f', help='The file that you want to send to Devo,'
                                    ' which will be sent line by line.')
 @click.option('--lkey', '-lk', help='Name of the column that contains the '
                                     'Lookup key. It has to be the exact name '
                                     'that appears in the header.')
+@click.option('--dkey', '-dk', help='Name of the column that contains the '
+                                    'action/delete key with "add" or "delete".'
+                                    'It has to be the exact name '
+                                    'that appears in the header.')
+@click.option('--detect-types/--no-detect-types', '-dt/-ndt',
+              help='Detect types of fields. Default: False',
+              default=False)
 @click.option('--delimiter', '-d', help='CSV Delimiter char.', default=",")
 @click.option('--quotechar', '-qc', help='CSV Quote char.', default='"')
 @click.option('--debug/--no-debug', help='For testing purposes', default=False)
@@ -131,15 +173,23 @@ def lookup(**kwargs):
     """Send csv lookups to devo"""
     config = configure_lookup(kwargs)
     con = Sender(config=config)
+
     lookup = Lookup(name=config['name'], historic_tag=None, con=con)
 
-    with open(config['file']) as file:
-        line = file.readline()
+    # with open(config['file']) as file:
+    #     line = file.readline()
 
-        lookup.send_csv(config['file'], delimiter=config['delimiter'],
-                         quotechar=config['quotechar'],
-                         headers=line.rstrip().split(config['delimiter']),
-                         key=config['lkey'])
+    lookup.send_csv(config['file'], delimiter=config['delimiter'],
+                    quotechar=config['quotechar'],
+                    has_header=True,
+                    # headers=line.rstrip().split(config['delimiter']),
+                    key=config['lkey'],
+                    action=config.get("action", "FULL"),
+                    delete_field=config.get("dkey", None),
+                    types=config.get(("lookup", "types"),
+                                     config.get("types", None)
+                                     ),
+                    detect_types=config.get("detect_types", False))
 
 
 def configure(args):

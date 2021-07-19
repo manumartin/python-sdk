@@ -5,9 +5,13 @@ This library performs queries to the Client API (Search rest api) of Devo.
 ## Endpoints
 ##### API
 To perform a request with API, first choose the required endpoint depending on the region your are accessing from:
- * **USA:** 	https://apiv2-us.devo.com/search/query
- * **EU:**   	https://apiv2-eu.devo.com/search/query
- * **VDC:**   	https://apiv2-es.devo.com/search/query
+
+| Region 	| Endpoint                               	|
+|--------	|----------------------------------------	|
+| USA    	| https://apiv2-us.devo.com/search/query 	|
+| Canada 	| https://apiv2-ca.devo.com/search/query 	|
+| Europe 	| https://apiv2-eu.devo.com/search/query 	|
+| VDC    	| https://apiv2-es.devo.com/search/query 	|
 
 You have more information in the official documentation of Devo, [REST API](https://docs.devo.com/confluence/ndt/api-reference/rest-api) .
 
@@ -77,7 +81,7 @@ api = Client(auth= {"key":"myapikey", "secret":"myapisecret"},
 `def query(self, **kwargs)`
 - query: Query to perform
 - query_id: Query ID to perform the query
-- dates: Dict with "from" and "to" keys
+- dates: Dict with "from" and "to" keys for date rangue, and "timeZone" for define timezone, if you want
 - limit: Max number of rows
 - offset: start of needle for query
 - comment: comment for query pragmas
@@ -115,7 +119,7 @@ print(response)
 api.config.response = "json/compact"
 
 response = api.query(query="from my.app.web.activityAll select * limit 10",
-                     dates= {'from': "2018-02-06 12:42:00"})
+                     dates= {'from': "2018-02-06 12:42:00", 'timeZone': "GMT+2"})
                      
 print(response)
 
@@ -163,10 +167,29 @@ You can revert it with:
 api.verify_certificates(True)
 ```  
 
+## Use custom CA to verify
+For customs servers, and custom certificates, you can use custom CA for verity that certificates. 
+You can put CA cert path instead of "False" or "True"
+
+```python
+from devo.api import Client, ClientConfig
+
+
+api = Client(auth= {"key":"myapikey", "secret":"myapisecret"}, 
+             address="https://apiv2-eu.devo.com/search/query")
+api.verify_certificates("/path/to/cafile.ca")
+```
+
+You can revert it with:
+
+```python
+api.verify_certificates(True)
+```  
+
 ## Processors flags:
 
 By default, you receive response in str/bytes (Depends of your python version) direct from Socket, and you need manipulate the data.
-But you can specify one default processor for data, soo you receive in diferente format:
+But you can specify one default processor for data, soo you receive in diferents format:
 
 ```python
 from devo.api import Client, ClientConfig, JSON_SIMPLE
@@ -178,7 +201,7 @@ api = Client(auth={"key":"myapikey", "secret":"myapisecret"},
              config=config)
              
 response = api.query(query="from my.app.web.activityAll select * limit 10",
-                     dates= {'from': "2018-02-06 12:42:00"})
+                     dates= {'from': "2018-02-06 12:42:00", 'timeZone': "GMT-2"})
 
 try:
     for item in response:
@@ -187,7 +210,7 @@ except Exception as error:
     print(error)
 ```
 
-####Flag list:
+#### Flag list:
 
 - DEFAULT: It is the default processor, it returns str or bytes, depending on the Python version
 - TO_STR: Return str, decoding data if receive bytes
@@ -199,28 +222,43 @@ except Exception as error:
 - SIMPLECOMPACT_TO_ARRAY: Use it if you want json objects, when ask for json/simple/compact responses, instead of str/bytes. Ignored when response=csv
 
 
-######- DEFAULT example in Python 3, response csv: 
+**JSON_SIMPLE, COMPACT_TO_ARRAY, SIMPLECOMPACT_TO_OBJ and SIMPLECOMPACT_TO_ARRAY only work with the api in mode `stream=True`**
+
+You can change the processor in any moment with one default processor or custom with the function:
+
+```python
+from devo.api import Client, ClientConfig, JSON_SIMPLE
+
+config = ClientConfig(response="json/simple", processor=JSON_SIMPLE, stream=True)
+
+api = Client(auth={"key":"myapikey", "secret":"myapisecret"},
+             address="https://apiv2-eu.devo.com/search/query",
+             config=config)
+api.config.set_processor(processor)
+```
+
+###### - DEFAULT example in Python 3, response csv: 
 ```python
 b'18/Jan/2019:09:58:51 +0000,/category.screen?category_id=BEDROOM&JSESSIONID=SD10SL6FF10ADFF7,404,http://www.bing.com/,Googlebot/2.1 ( http://www.googlebot.com/bot.html),gaqfse5dpcm690jdh5ho1f00o2:-'
 ```  
 
-######- DEFAULT example in Python 2.7, response csv: 
+###### - DEFAULT example in Python 2.7, response csv: 
 ```python
 '18/Jan/2019:09:58:51 +0000,/category.screen?category_id=BEDROOM&JSESSIONID=SD10SL6FF10ADFF7,404,http://www.bing.com/,Googlebot/2.1 ( http://www.googlebot.com/bot.html),gaqfse5dpcm690jdh5ho1f00o2:-'
 ```  
-######- TO_STR example in Python 3, response csv: 
+###### - TO_STR example in Python 3, response csv: 
 ```python
 '18/Jan/2019:09:58:51 +0000,/category.screen?category_id=BEDROOM&JSESSIONID=SD10SL6FF10ADFF7,404,http://www.bing.com/,Googlebot/2.1 ( http://www.googlebot.com/bot.html),gaqfse5dpcm690jdh5ho1f00o2:-'
 ```  
-######- TO_BYTES example in Python 2.7, response csv: 
+###### - TO_BYTES example in Python 2.7, response csv: 
 ```python
 b'18/Jan/2019:09:58:51 +0000,/category.screen?category_id=BEDROOM&JSESSIONID=SD10SL6FF10ADFF7,404,http://www.bing.com/,Googlebot/2.1 ( http://www.googlebot.com/bot.html),gaqfse5dpcm690jdh5ho1f00o2:-'
 ```  
-######- SIMPLECOMPACT_TO_ARRAY example in Python 3, response json/simple/compact: 
+###### - SIMPLECOMPACT_TO_ARRAY example in Python 3, response json/simple/compact: 
 ```python
 ['18/Jan/2019:09:58:51 +0000', '/category.screen?category_id=BEDROOM&JSESSIONID=SD10SL6FF10ADFF7', 404, 'http://www.bing.com/', 'Googlebot/2.1 ( http://www.googlebot.com/bot.html)', 'gaqfse5dpcm690jdh5ho1f00o2:-']
 ```  
-######- SIMPLECOMPACT_TO_OBJ example in Python 3, response json/simple/compact: 
+###### - SIMPLECOMPACT_TO_OBJ example in Python 3, response json/simple/compact: 
 ```python
 {'statusCode': 404, 'uri': '/category.screen?category_id=BEDROOM&JSESSIONID=SD10SL6FF10ADFF7', 'referralUri': 'http://www.bing.com/', 'userAgent': 'Googlebot/2.1 ( http://www.googlebot.com/bot.html)', 'cookie': 'gaqfse5dpcm690jdh5ho1f00o2:-', 'timestamp': '18/Jan/2019:09:58:51 +0000'}
 ```  
@@ -236,11 +274,13 @@ From                                                                          To
 ```
 
 ### Date Formats
-- Fixed format: As described on [Official Python Docs](https://docs.python.org/3/library/datetime.html#strftime-and-strptime-behavior). Accepted formats are:
+- **Fixed format:** As described on [Official Python Docs](https://docs.python.org/3/library/datetime.html#strftime-and-strptime-behavior). Accepted formats are:
     - '%Y-%m-%d %H:%M:%S'
     - '%Y-%m-%d', the time will be truncated to 00:00:00
-- Timestamp: From epoch in millis
-- Dynamic expression: Using the LinQ sintax we can use several functions
+    
+- **Timestamp:** From epoch in millis
+
+- **Dynamic expression:** Using the LinQ sintax we can use several functions. **timeZone can be wrong with this syntax**
     - Relative functions:
         - now(): Current date and time
         - today(): Current date and time fixed to 00:00:00
@@ -252,6 +292,71 @@ From                                                                          To
         - day(): Return 24 * 60 * 60
         - week(): Return 7 * 24 * 60 * 60
         - month(): Return 30 * 24 * 60 * 60
+        
+    With this sintax you can use expressions like: `from="now()-2*day()` equivalent to now minus two days.
+    Or `from=today()-6*month()`, etc.
+    
+- **New REST API dinamyc dates**: 
+
+    `For all the examples that don't use a timestamp to specify a date, we assume that the moment of execution is 08-10-2018, 14:33:12 UTC.`
+    This is a copy of official Devo docs you can see [HERE](https://docs.devo.com/confluence/ndt/api-reference/rest-api/running-queries-with-the-rest-api)
+
+ ### ____**_Dates_**
+    
+|Operator|Example|Description|
+| ------------- | ------------- |---------|
+|today|	|Get the current day at 00:00:00. Note that the timeZone parameter affects the date settings.|
+| |`"from": "today"`|This sets the starting date to 08-10-2018, 00:00:00 UTC
+| |`"to": "today"`|This sets the ending date to 08-10-2018, 00:00:00 UTC
+| |`"from": "today", "timeZone": "GMT+2"`|This sets the starting date to 08-10-2018, 00:00:00 GMT+2 (07-10-2018, 22:00:00 UTC)
+| |`"to": "today", "timeZone": "GMT+2"`|This sets the ending date to 08-10-2018, 00:00:00 GMT+2 (07-10-2018, 22:00:00 UTC)
+| | | |
+|now| |Get the current day and time
+| |`"from": "now"`|This sets the starting date to 08-10-2018, 14:33:12 UTC
+| |`"to": "now"`|This sets the ending date to 08-10-2018, 14:33:12 UTC
+| | | |
+|endday | |If you use this in the from field you will get the current day and the last second of the day. If you use it in the to field you will get the from date and the last second of that day. Note that the timeZone parameter affects the date settings.
+| |`"from": "endday"`|This sets the starting date to 08-10-2018, 23:59:59 UTC
+| |`"from": 1515500531, "to": "endday"`|(this timestamp corresponds to 01/09/2018 12:22:11 UTC) This sets the ending date to 01-09-2018, 23:59:59 UTC.
+| |`"from": "endday", "timeZone": "GMT+2"`|This sets the ending date to 08-10-2018, 23:59:59 GMT+2 (08-10-2018, 21:59:59 UTC)
+| |`"from": 1515493331,  "to": "endday", "timeZone": "GMT+2"`|(this timestamp corresponds to 01/09/2018, 12:22:11 GMT+2) This sets the ending date to 01-09-2018 23:59:59 GMT+2 (01-09-2018, 21:59:59 UTC)
+| |`"from": 1515452400, "to": "endday", "timeZone": "GMT+2"`|(this timestamp corresponds to 01/09/2018, 01:00:00 GMT+2) This sets the ending date to 01-09-2018 23:59:59 GMT+2 (01-09-2018, 21:59:59 UTC)
+| | | |
+|endmonth| |If you use this in the from field you will get the last day of the current month and the last second of that day. If you use it in the to field, you will get last day of the month indicated in the date field and the last second of that day. Note that the timeZone parameter affects the date settings.
+| |`"from": "endmonth"`|This sets the starting date to 31-10-2018, 23:59:59 UTC
+| |`"to": "endmonth"`|This sets the ending date to 30-09-2018, 23:59:59 UTC.
+| |`"from": 1536150131, "to": "endmonth"`|(this timestamp corresponds to 05/09/2018, 12:22:11 UTC) This sets the ending date to 30-09-2018, 23:59:59 UTC
+| |`"from": 1536142931, "to": "endmonth", "timeZone": "GMT+2"`|(this timestamp corresponds to 05/09/2018, 12:22:11 GMT+2) This sets the ending date to 30-09-2018 23:59:59 GMT+2 (30-09-2018, 21:59:59 UTC)
+ ### ____**_Days_**
+|Operator|Example|Description|
+| ------------- | ------------- |------------- |
+|d	| |Enter a number followed by d in the from parameter to substract N days from the current date. If you use it in the to field you will get the from date plus the indicated number of days.
+| |`"from": "2d"`|This sets the starting date to 06-10-2018, 14:33:12 UTC
+| |`"from": 1536150131, "to": "2d"`|This sets the ending date to 07-09-2018, 12:22:11 UTC
+| |`"from": "5d",  "to": "2d"`|This sets the starting date to 03-10-2018, 14:33:12 UTC and the ending date to 05-10-2018, 14:33:12 UTC
+| | | |
+|ad| |Enter a number followed by ad in the from parameter to subtract N days from the current date and set time to 00:00:00. If you use it in the to field you will get the from date plus the indicated number of days and set time to 00:00:00. Note that the timeZone parameter affects the date settings.
+| |`"from": "2ad"`|This sets the starting date to 06-10-2018, 00:00:00 UTC
+| |`"from": 1536150131, "to": "2ad"`|(this timestamp corresponds to 05-09-2018, 12:22:11 UTC) This sets the ending date to 07-09-2018, 00:00:00 UTC
+| |`"from":"5ad", "to": "2ad"`|This sets the starting date to 03-10-2018, 00:00:00 UTC and the ending date to 05-10-2018, 00:00:00 UTC
+| |`"from": "5ad", "to": "2ad"`|This sets the starting date to 03-10-2018, 00:00:00 UTC and the ending date to 05-10-2018, 00:00:00 UTC
+| |`"from": 1536142931, "to": "2ad", "timeZone": "GMT+2"`|(this timestamp corresponds to 05-09-2018, 12:22:11 UTC) This sets the ending date to 07-09-2018, 00:00:00 GMT+2 (06-09-2018, 22:00:00 UTC)
+| |`"from": "5ad", "to": "2ad", "timeZone": "GMT+2"`|This sets the starting date to 03-10-2018, 00:00:00 GMT+2 (02-10-2018, 22:00:00 UTC), and the ending date to 05-10-2018, 00:00:00 GMT+2 (04-10-2018, 22:00:00 UTC)
+
+ ### ____**_Hours_**
+|Operator|Example|Description|
+| ------------- | ------------- |------------- |
+|h| |Enter a number followed by h in the from parameter to subtract N hours from the current time. If you use it in the to field you will get the from time plus the indicated number of hours.
+| |`"from": "2h"`|This sets the starting date to 08-10-2018, 12:33:12 UTC
+| |`"from": "16h"`|This sets the starting date to 07-10-2018, 22:33:12 UTC
+| |`"from": 1536150131, "to": "2h"`|(this timestamp corresponds to 05/09/2018, 12:22:11 UTC) This sets the ending date to 05-09-2018, 14:22:11 UTC
+| |`"from": "5h", "to": "2h"`|This sets the starting date to 08-10-2018, 09:33:12 UTC and the ending date to 08-10-2018, 11:33:12 UTC
+|ah| |Enter a number followed by ah in the from parameter to subtract N hours from the current date at 00:00:00. If you use it in the to field you will add the indicated number of hours to the from date at 00:00:00. Note that the timeZone parameter affects the date settings.
+| |`"from": "2ah"`|This sets the starting date to 07-10-2018, 22:00:00 UTC
+| |`"from": "2ah", "timeZone": "GMT+2"`|This sets the starting date to 07-10-2018, 22:00:00 GMT+2 (07-10-2018, 20:00:00 UTC)
+| |`"from": 1536114131, "to": "12ah"`|(this timestamp corresponds to 05-09-2018, 02:22:11 UTC) This sets the starting date to 07-10-2018, 22:00:00 GMT+2 (07-10-2018, 20:00:00 UTC)
+| |`"from": 1536106931, "to": "12aH", "timeZone": "GMT+2"`|(this timestamp corresponds to 05-09-2018, 12:22:11 GMT+2) This sets the ending date to 05-09-2018, 12:00:00 GMT+2 (05-09-2018, 10:00:00 UTC)
+| |`"from": "5ah", "to": "21ah"`|This sets the starting date to 07-10-2018, 19:00:00 UTC and the ending date to 07-10-2018, 21:00:00 UTC
 
 
 ## CLI USAGE
@@ -262,25 +367,31 @@ Usage: `devo-api query [OPTIONS]`
 
 ```
 Options:
-  -c, --config PATH                            JSON/YAML File with configuration, you can put all options here
-  -e, --env                                    Use env vars for configuration
-  -a, --address TEXT                           Endpoint for the api.
-  --key TEXT                                   Key for the api.
-  --secret TEXT     Secret for the api.
-  --token TEXT      Token auth for query.
-  --jwt TEXT                                   jwt auth for query.
-  -q, --query TEXT                             Query.
-  --stream / --no-stream                       Flag for make streaming query or full query with start and end. Default is true
-  --output TEXT                                File path to store query response if not want stdout
-  -r, --response TEXT                          The output format. Default is json/simple/compact
-  --from TEXT                                  From date, and time for the query (YYYY-MM-DD hh:mm:ss). For valid formats see lt-common README
-  --to TEXT                                    To date, and time for the query (YYYY-MM-DD hh:mm:ss). For valid formats see lt-common README
-  --help                                       Show this message and exit.
-  --user                                       User for the api.
-  --app_name                                   App Name for the api.
-  --comment                                    Comment for pragma in query
-  --debug/--no-debug  For testing purposes
-  --help                 Show this message and exit.
+  -c, --config PATH       Optional JSON/Yaml File with configuration info.
+  -e, --env TEXT          Use env vars for configuration
+  -d, --default TEXT      Use default file for configuration
+  -a, --address TEXT      Endpoint for the api.
+  --user TEXT             User for the api.
+  --app_name TEXT         Application name for the api.
+  --comment TEXT          Comment for the queries.
+  --key TEXT              Key for the api.
+  --secret TEXT           Secret for the api.
+  --token TEXT            Secret for the api.
+  --jwt TEXT              JWT auth for the api.
+  -q, --query TEXT        Query.
+  --stream / --no-stream  Flag for make streaming query or full query with
+                          start and end. Default is true
+
+  --output TEXT           File path to store query response if not want stdout
+  -r, --response TEXT     The output format. Default is json/simple/compact
+  --from TEXT             From date. For valid formats see API README. Default
+                          if now - 1 hour
+
+  --to TEXT               To date. For valid formats see API README
+  --timeZone TEXT         Timezone info. For valid formats see API README
+  --verify BOOLEAN        Verify certificates
+  --debug / --no-debug    For testing purposes
+  --help                  Show this message and exit.
 ```
 
 A configuration file does not have to have all the necessary keys, you can have 
@@ -343,7 +454,13 @@ Priority order:
 3. Environment vars: if you send key, secrey or token in config file or params cli, this option not be called
 4. ~/.devo.json or ~/.devo.yaml: if you send key, secrey or token in other way, this option not be called
 
-Environment vars are: `DEVO_API_ADDRESS`, `DEVO_API_KEY`, `DEVO_API_SECRET`, `DEVO_API_USER`.
+Environment vars are: 
+- `DEVO_API_ADDRESS`
+- `DEVO_API_KEY`
+- `DEVO_API_SECRET`
+- `DEVO_API_USER`
+- `DEVO_API_TOKEN`
+- `DEVO_API_JWT`
 
 ## Choosing Fomat
 The default response format (`response`) is `json`, to change the default value, it can be established directly:

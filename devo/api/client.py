@@ -27,7 +27,9 @@ SIMPLECOMPACT_TO_ARRAY = "jsoncompactsimple_to_array"
 ERROR_MSGS = {
     "no_query": "Error: Not query provided.",
     "no_auth": "Client dont have key&secret or auth token/jwt",
-    "no_endpoint": "Endpoint 'address' not found"
+    "no_endpoint": "Endpoint 'address' not found",
+    "to_but_no_from": "If you use end dates for the query 'to' it is "
+                      "necessary to use start date 'from'"
 }
 
 
@@ -40,16 +42,14 @@ def raise_exception(error):
     try:
         if isinstance(error, str):
             raise DevoClientException(proc_json()(error))
-        elif isinstance(error, DevoClientException):
+        if isinstance(error, DevoClientException):
             if isinstance(error.args[0], str):
                 raise DevoClientException(proc_json()(error.args[0]))
-            else:
-                raise DevoClientException(error.args[0])
-        elif isinstance(error, dict):
+            raise DevoClientException(error.args[0])
+        if isinstance(error, dict):
             raise DevoClientException(error)
-        else:
-            response_text = proc_json()(error.text)
-            raise DevoClientException(response_text)
+        response_text = proc_json()(error.text)
+        raise DevoClientException(response_text)
     except json.decoder.JSONDecodeError:
         raise DevoClientException(_format_error(error))
 
@@ -77,8 +77,10 @@ class ClientConfig:
         self.stream = stream
         self.response = response
         self.destination = destination
-        self.proc = processor
-        self.processor = processors()[self.proc]()
+        self.proc = None
+        self.processor = None
+        self.set_processor(processor)
+
         if pragmas:
             self.pragmas = pragmas
             if "user" not in self.pragmas.keys():
@@ -95,9 +97,18 @@ class ClientConfig:
         :param processor: lambda function
         :return:
         """
-        if processor:
+        if isinstance(processor, (str, bytes)):
             self.proc = processor
-            self.processor = processors()[self.proc]()
+            try:
+                self.processor = processors()[self.proc]()
+            except KeyError:
+                raise_exception("Processor not found")
+        elif isinstance(processor, (type(lambda x: 0))):
+            self.proc = "CUSTOM"
+            self.processor = processor
+        else:
+            raise_exception("processor must be lambda/function or one of"
+                            "the defaults API processors.")
         return True
 
     def set_user(self, user=CLIENT_DEFAULT_USER):
@@ -125,7 +136,7 @@ class Client:
     The Devo seach rest api main class
     """
     def __init__(self, address=None, auth=None, config=None,
-                 retries=None, timeout=None):
+                 retries=None, timeout=None, verify=None):
         """
         Initialize the API with this params, all optionals
         :param address: endpoint
@@ -147,12 +158,13 @@ class Client:
                                                  "token": config.get("token",
                                                                      None)})
 
-            retries = retries if retries else config.get("retries", 3)
-            timeout = timeout if retries else config.get("retries", 30)
+            verify = verify if verify is not None \
+                else config.get("verify", True)
+            retries = retries if retries is not None \
+                else config.get("retries", 3)
+            timeout = timeout if timeout is not None \
+                else config.get("timeout", 30)
             self.config = self._from_dict(config)
-
-        retries = retries if retries else 3
-        timeout = timeout if timeout else 30
 
         self.auth = auth
         if not address:
@@ -162,9 +174,12 @@ class Client:
 
         self.address = self.__get_address_parts(address)
 
-        self.retries = retries
-        self.timeout = timeout
-        self.verify = self.config.ssl
+        self.retries = int(retries) if retries else 3
+        self.timeout = int(timeout) if timeout else 30
+        if self.config.ssl is True:
+            self.verify = verify if verify is not None else True
+        else:
+            self.verify = False
 
     @staticmethod
     def _from_dict(config):
@@ -211,7 +226,7 @@ class Client:
         :param dates: object with options for query, see doc
         :return: updated opts
         """
-        default = {'from': 'yesterday()', 'to': None}
+        default = {'from': '1h', 'to': None}
         if not dates:
             return default
 
@@ -379,11 +394,21 @@ class Client:
         :param opts: destination -> Destination for the results
         :return: Return the formed payload
         """
-        payload = {"from": int(default_from(dates['from']) / 1000),
-                   "to": int(default_to(dates['to']) / 1000) if dates['to']
-                         is not None
-                         else None,
-                   "mode": {"type": opts['response']}}
+        date_from = default_from(dates['from'])
+        date_to = default_to(dates['to']) if dates['to'] is not None else None
+
+        payload = {
+            "from":
+                int(date_from / 1000) if isinstance(date_from, (int, float))
+                else date_from,
+            "to":
+                int(date_to / 1000) if isinstance(date_to, (int, float))
+                else date_to,
+            "mode": {"type": opts['response']}}
+
+        if dates.get("timeZone"):
+            payload['timeZone'] = dates.get("timeZone")
+
         if query:
             payload['query'] = query
 

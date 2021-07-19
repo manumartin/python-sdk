@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """CLI for use Devo API from shell command line."""
 import os
 import click
@@ -14,12 +15,12 @@ from devo.__version__ import __version__
 @click.option('--version', "-v", is_flag=True, default=False)
 def cli(version):
     """ Initialize click """
-    pkg_dir =  os.path.abspath(os.path.join(
-        os.path.dirname(__file__), "..", "..",
-    ))
-    click.echo("devo-sdk {!s} from {!s} (python {!s})".format(__version__,
-                                                              pkg_dir,
-                                                              sys.version[:3]))
+    if version:
+        pkg_dir = os.path.abspath(os.path.join(
+            os.path.dirname(__file__), "..", "..",
+        ))
+        click.echo("devo-sdk {!s} from {!s} (python {!s})"
+                   .format(__version__, pkg_dir, sys.version[:3]))
 
 # Commands
 # ------------------------------------------------------------------------------
@@ -39,6 +40,7 @@ def cli(version):
 @click.option('--key', help='Key for the api.')
 @click.option('--secret', help='Secret for the api.')
 @click.option('--token', help='Secret for the api.')
+@click.option('--jwt', help='JWT auth for the api.')
 @click.option('--query', '-q', help='Query.', default="")
 @click.option('--stream/--no-stream',
               help='Flag for make streaming query or full query with '
@@ -47,12 +49,14 @@ def cli(version):
                                'stdout')
 @click.option('--response', '-r', default="json/simple/compact",
               help='The output format. Default is json/simple/compact')
-@click.option('--from', default=None,
-              help='From date, and time for the query (YYYY-MM-DD hh:mm:ss). '
-                   'For valid formats see lt-common README')
-@click.option('--to', default=None,
-              help='To date, and time for the query (YYYY-MM-DD hh:mm:ss). '
-                   'For valid formats see lt-common README')
+@click.option('--from',
+              help='From date. For valid formats see API README.'
+                   ' Default if now - 1 hour')
+@click.option('--to',
+              help='To date. For valid formats see API README')
+@click.option('--timeZone',
+              help='Timezone info. For valid formats see API README')
+@click.option('--verify', type=bool, help='Verify certificates')
 @click.option('--debug/--no-debug', help='For testing purposes', default=False)
 def query(**kwargs):
     """Perform query by query string"""
@@ -69,10 +73,23 @@ def query(**kwargs):
         if config['debug']:
             return
         exit()
-    reponse = api.query(query=config['query'],
-                        dates={"from": config['from'],
-                               "to": config['to'] if "to" in config.keys()
-                               else None})
+
+    if "from" in config.keys():
+        dates = {'from': config['from']}
+        if "to" in config.keys():
+            dates["to"] = config['to']
+        if "timeZone" in config.keys():
+            dates['timeZone'] = config['timeZone']
+    elif "to" in config.keys():
+        print_error(ERROR_MSGS['to_but_no_from'], show_help=True)
+        exit()
+    else:
+        if "timeZone" in config.keys():
+            dates = {'timeZone': config['timeZone']}
+        else:
+            dates = None
+
+    reponse = api.query(query=config['query'], dates=dates)
 
     process_response(reponse, config)
 
@@ -121,9 +138,13 @@ def configure(args):
         if args.get('env'):
             config.set("key", os.environ.get('DEVO_API_KEY', None))
             config.set("secret", os.environ.get('DEVO_API_SECRET', None))
+            config.set("token", os.environ.get('DEVO_API_TOKEN', None))
+            config.set("jwt", os.environ.get('DEVO_API_JWT', None))
             config.set("address", os.environ.get('DEVO_API_ADDRESS', None))
             config.set("user", os.environ.get('DEVO_API_USER', None))
             config.set("comment", os.environ.get('DEVO_API_COMMENT', None))
+            config.set("retries", os.environ.get('DEVO_API_RETRIES', None))
+            config.set("timeout", os.environ.get('DEVO_API_TIMEOUT', None))
 
         if args.get('default'):
             config.load_default_config(section="api")

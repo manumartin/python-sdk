@@ -5,6 +5,119 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
 
+## [3.4.2] - 2021-05-18
+### Added
+ * Update pyyaml version dependency
+
+## [3.4.1] - 2020-11-03
+### Added
+ * Info about use custom CA for verify certificates in client
+ 
+### Fixed
+ * Client problems with default "From" key for queries
+ * Socket closes are more gently now, fixed problems with loss events
+ 
+### Changed
+ * Updated message when overwrite sec_level to show only when create Sender
+ * Updated test for bad credentials. Now api returns error in signature validation
+
+## [3.4.0] - 2020-08-06
+### Added
+ * Support to use in lookup fields lists: ints, booleans and floats. Not necessary send all with str type.
+ * More documentation in lookup readme
+ 
+## [3.3.7] - 2020-07-16
+### Fixed
+ * Problem in list_to_headers when pass key but not key_index
+ * Count of sended events when zip=True
+ * Problems with key instead of key_index in lookups
+
+## [3.3.6] - 2020-06-30
+### Fixed
+ * Fixed problem with row types in Lookup creation
+ 
+## [3.3.3] - 2020-06-10
+### Fixed
+ * Fixed (Again) problems with verify flag in Api creation
+
+## [3.3.2] - 2020-06-02
+### Fixed
+ * Fixed problems with Query Eternal queries
+ * Fixed problems with some flags in Api creation
+
+## [3.3.1] - 2020-05-11
+### Added
+ * env vars JWT and TOKEN for API shell client
+ * verify certs in API creation and cli calls
+ 
+### Fixed
+ * Documentation about SSLConfigSender
+ 
+### Deprecated
+ * Unnecesary setters
+
+## [No version upgraded] - 2020-04-29
+### Added
+ * Added examples
+ 
+### Fixed
+ * Fixed shebangs
+ * Fixed typo in README
+ * Remove one blank in Sender
+
+## [3.3.0] - 2020-04-14
+### Added
+ * Support for Python 3.8
+ * Testing in Travis for python 3.6, 3.7 and 3.8
+ * Support in API to timeZone flag for Devo API
+ * Support in API for new devo custom formats
+ * Documentation for new date formats
+ * Functions to change buffer size and compression_level of Sender
+ * Support for zip, buffer and compression_level flags in Sender CLI
+
+### Changed
+ * SSL Server support to adapt it from python 3.5 to python 3.8
+ * SSL Send data tests 
+ * Requirements, updated.
+ 
+#### Removed
+ * unnecessary elifs in code following PEP8 recomendations
+ 
+## [3.2.5] - 2020-04-02
+### Added
+ * Added new security flags to Sender SSL Sender
+ 
+### Changed
+ * Changed API processors to be able to add custom processors
+ 
+#### Fixed
+ * Documentation
+ * Sender CLI missing options
+ 
+## [3.2.2] - 2020-03-23
+#### Fixed
+ * wrongly assigned timeout from configuration
+
+#### Added
+ * "timeout" and "retries" parameters are able to be assigned from environment (DEVO_API_TIMEOUT, DEVO_API_RETRIES)
+
+## [3.2.1] - 2020-03-17
+### Changed
+ * Changed version info in CLI for show only when asked
+
+## [3.2.0] - 2020-01-13
+#### Added
+ * Support to Incremental lookups in CLI
+ * Support to types in lookups
+ * Auto-detect types for lookups
+ * Action field for lookups
+
+#### Changed
+ * The documentation of the devo-sender is now separated into data and lookups
+
+#### Deprecated
+ * list_to_fields function in lookups its deprecated and not in use by the internal code. To be deleted in v4 of Devo-sdk
+
 ## [3.1.1] - 2019-11-12
 #### Added
  * Support to CA_MD_TOO_WEAK problems with a new flag "sec_level"

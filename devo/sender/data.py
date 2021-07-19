@@ -12,6 +12,7 @@ from .transformsyslog import FORMAT_MY, FORMAT_MY_BYTES, \
     FACILITY_USER, SEVERITY_INFO, COMPOSE, \
     COMPOSE_BYTES, priority_map
 
+
 PYPY = hasattr(sys, 'pypy_version_info')
 
 
@@ -39,14 +40,16 @@ class SenderConfigSSL:
     this param to work with it
 
     >>>sender_config = SenderConfigSSL(address=(SERVER, int(PORT)), key=KEY,
-    ...                                cert=CERT, chain=CHAIN, sec_level=None)
+    ...                                cert=CERT, chain=CHAIN, sec_level=None,
+                                       check_hostname=True, verify_mode=None)
 
     See Also:
         Sender
 
     """
     def __init__(self, address=None, key=None, cert=None, chain=None,
-                 pkcs=None, sec_level=None):
+                 pkcs=None, sec_level=None, check_hostname=True,
+                 verify_mode=None):
         if not isinstance(address, tuple):
             raise DevoSenderException(
                 "Devo-SenderConfigSSL| address must be a tuple "
@@ -59,6 +62,8 @@ class SenderConfigSSL:
             self.pkcs = pkcs
             self.hostname = socket.gethostname()
             self.sec_level = sec_level
+            self.check_hostname = check_hostname
+            self.verify_mode = verify_mode
         except Exception as error:
             raise DevoSenderException(
                 "Devo-SenderConfigSSL|Can't create SSL config: "
@@ -84,6 +89,7 @@ class SenderConfigTCP:
         try:
             self.address = address
             self.hostname = socket.gethostname()
+            self.sec_level = None
         except Exception as error:
             raise DevoSenderException(
                 "DevoSenderConfigTCP|Can't create TCP config: "
@@ -126,8 +132,16 @@ class Sender(logging.Handler):
             get_log(handler=get_stream_handler(
                 msg_format='%(asctime)s|%(levelname)s|Devo-Sender|%(message)s'))
 
-        self.socket = None
         self._sender_config = config
+
+        if self._sender_config.sec_level is not None:
+            self.logger.warning("Openssl's default security "
+                                "level has been overwritten to "
+                                "{}.".format(self.
+                                             _sender_config.
+                                             sec_level))
+
+        self.socket = None
         self.reconnection = 0
         self.debug = debug
         self.socket_timeout = timeout
@@ -196,14 +210,14 @@ class Sender(logging.Handler):
                         cafile=self._sender_config.chain)
 
                     if self._sender_config.sec_level is not None:
-                        self.logger.warning("Openssl's default security "
-                                            "level has been overwritten to"
-                                            "{}.".format(self.
-                                                         _sender_config.
-                                                         sec_level))
                         context.set_ciphers(
                             "DEFAULT@SECLEVEL={!s}"
                             .format(self._sender_config.sec_level))
+
+                    context.check_hostname = self._sender_config.check_hostname
+
+                    if self._sender_config.verify_mode is not None:
+                        context.verify_mode = self._sender_config.verify_mode
 
                     context.load_cert_chain(keyfile=self._sender_config.key,
                                             certfile=self._sender_config.cert)
@@ -241,6 +255,77 @@ class Sender(logging.Handler):
         """
         self.send(tag=self.logging.get("tag"), msg=msg)
 
+    # TODO: Deprecated
+    def set_sec_level(self, sec_level=None):
+        """
+        Set sec_level of SSL Context:
+
+        :param sec_level: sec_level value
+        :return
+        """
+        self._sender_config.sec_level = sec_level
+
+    # TODO: Deprecated
+    def set_verify_mode(self, verify_mode=None):
+        """
+        Set verify_mode of SSL Context:
+
+        ssl.CERT_NONE = 0
+        ssl.CERT_OPTIONAL = 1
+        ssl.CERT_REQUIRED = 2
+
+        :param verify_mode: verify mode value
+        :return
+        """
+        self._sender_config.verify_mode = verify_mode
+
+    # TODO: Deprecated
+    def set_check_hostname(self, check_hostname=True):
+        """
+        Set check_hostname of SSL Context:
+
+        :param check_hostname: check_hostname value. Default True
+        :return
+        """
+        self._sender_config.check_hostname = check_hostname
+
+    def buffer_size(self, size=19500):
+        """
+        Set buffer size for Sender:
+
+        :param size: New size of buffer. Default 19500
+        :return True or False
+        """
+        try:
+            self.buffer.length = size
+            return True
+        except Exception:
+            return False
+
+    def compression_level(self, cl=-1):
+        """
+        Set compression level for zipped data
+
+        compression_level is an integer from 0 to 9 or -1
+        controlling the level of compression;
+        1 (Z_BEST_SPEED) is the fastest and produces the lower compression,
+        9 (Z_BEST_COMPRESSION) is the slowest and produces the highest
+        compression.
+        0 (Z_NO_COMPRESSION) has no compression.
+        The default value is -1 (Z_DEFAULT_COMPRESSION).
+
+        Z_DEFAULT_COMPRESSION represents a default compromise between
+        speed and compression (currently equivalent to level 6).
+        :param cl: (Compression_level). Default -1
+
+        :return True or False
+        """
+        try:
+            self.buffer.compression_level = cl
+            return True
+        except Exception:
+            return False
+
     def __status(self):
         """
         View Socket status, check if it's open
@@ -259,6 +344,7 @@ class Sender(logging.Handler):
         Forces socket closure
         """
         if self.socket is not None:
+            self.socket.shutdown(2)
             self.socket.close()
             self.socket = None
 
@@ -422,10 +508,9 @@ class Sender(logging.Handler):
             msg += b"\n"
 
         self.buffer.text_buffer += msg
+        self.buffer.events += 1
         if len(self.buffer.text_buffer) > self.buffer.length:
             return self.flush_buffer()
-
-        self.buffer.events += 1
         return 0
 
     def flush_buffer(self):
@@ -475,6 +560,8 @@ class Sender(logging.Handler):
         else:
             con.logging['level'] = logging.INFO
 
+        con.logger.setLevel(con.logging.get("level"))
+
         return con
 
     @staticmethod
@@ -506,7 +593,10 @@ class Sender(logging.Handler):
                                    cert=config.get("cert", None),
                                    chain=config.get("chain", None),
                                    pkcs=config.get("pkcs", None),
-                                   sec_level=config.get("sec_level", None))
+                                   sec_level=config.get("sec_level", None),
+                                   verify_mode=config.get("verify_mode", None),
+                                   check_hostname=config.get("check_hostname",
+                                                             True))
 
         return SenderConfigTCP(address=address)
 
